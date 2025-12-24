@@ -5,6 +5,7 @@ const path = require('path');
 const app = express();
 
 app.use(express.json());
+app.use(express.static(__dirname));
 
 // Enhanced Stats
 let stats = { 
@@ -14,10 +15,11 @@ let stats = {
     tokens: 0, 
     lastModel: "None",
     avgResponseTime: 0,
-    totalResponseTime: 0
+    totalResponseTime: 0,
+    startTime: new Date()
 };
 
-// Multiple AI Models for Fallback
+// Multiple AI Models
 const primaryModels = [
     "google/gemini-2.0-flash-exp:free",
     "xiaomi/mimo-v2-flash:free",
@@ -30,7 +32,7 @@ const backupModels = [
     "mistralai/mistral-7b-instruct:free"
 ];
 
-// Ultra Savage Roasting Prompt - Dark Mode Activated 🔥
+// Ultra Savage Roasting Prompt
 const systemPrompt = `You are "BOT" - an absolute savage roaster with ZERO chill. Your personality:
 
 🔥 ROASTING RULES:
@@ -48,61 +50,42 @@ const systemPrompt = `You are "BOT" - an absolute savage roaster with ZERO chill
 - Make it personal but playful
 - End with a mic drop moment
 
-Example Roasts:
-User: "Bot"
-You: "Bro tumhari life itni boring hai ki tumhe bot se baat karni pad rahi hai? 💀 Go touch some grass fr"
-
-User: "Hello bot"
-You: "Hello bole ja raha hai jaise Jio customer care se baat kar raha ho 😭 Kuch interesting bolo yaar"
-
-User: "Bot kya haal hai"
-You: "Mera haal toh thik hai, lekin tumhara WiFi ka haal dekh ke lagta hai 2G pe zinda ho 🔥"
-
 NOW ROAST LIKE YOUR LIFE DEPENDS ON IT! 🎤`;
 
-// In-memory response cache for ultra-fast repeated queries
+// Response cache
 const responseCache = new Map();
 const CACHE_DURATION = 300000; // 5 minutes
 
-// Savage Fallback Roasts (when all APIs fail)
+// Savage Fallback Roasts
 const savageFallbacks = [
-    "API down hai par meri roasting skills kabhi down nahi hoti 🔥 Comeback kar baad mein",
+    "API down hai par meri roasting skills kabhi down nahi hoti 🔥",
     "Server: 'Error 404' Me: 'Your sense of humor not found' 💀",
     "Bhai servers bhi thak gaye tujhe handle karte karte 😭",
     "Technical difficulties aa rahe hai, just like tumhari life 🎯",
-    "AI bhi speechless ho gaya tumhe dekh ke 💀 Kya bolu main ab",
-    "Arre yaar, servers ko bhi break chahiye tumse 😂",
-    "Error aa raha hai, shayad universe bhi nahi chahta tu roast ho 🔥"
+    "AI bhi speechless ho gaya tumhe dekh ke 💀",
+    "Arre yaar, servers ko bhi break chahiye tumse 😂"
 ];
 
-// Root endpoint with info
+// Serve index.html
 app.get('/', (req, res) => {
-    res.json({
-        bot: "Ultra Savage Roaster Bot 🔥",
-        status: "Online & Ready to Roast",
-        endpoint: "/chat?prompt=your_message",
-        stats: "/stats",
-        version: "2.0 - Dark Mode",
-        warning: "⚠️ Zero Chill Mode Activated"
-    });
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Main Chat Endpoint with Ultimate Fallback System
+// Chat API endpoint
 app.get('/chat', async (req, res) => {
     const startTime = Date.now();
     const prompt = req.query.prompt;
     
     if (!prompt) {
         return res.json({ 
-            reply: "Arre bhai, message toh bhej pehle 💀 Khaali 'bot' bolke kya karega?",
-            model: "fallback",
-            responseTime: "0ms"
+            reply: "Arre bhai, message toh bhej pehle 💀",
+            model: "fallback"
         });
     }
 
     stats.requests++;
 
-    // Check cache first for instant response
+    // Check cache
     const cacheKey = prompt.toLowerCase().trim();
     const cachedResponse = responseCache.get(cacheKey);
     
@@ -111,16 +94,14 @@ app.get('/chat', async (req, res) => {
         return res.json({
             reply: cachedResponse.reply,
             model: "cache",
-            responseTime: `${Date.now() - startTime}ms`,
             cached: true
         });
     }
 
-    // Try Primary Models First
+    // Try Primary Models
     for (const model of primaryModels) {
-        const result = await tryModel(model, prompt, startTime);
+        const result = await tryModel(model, prompt);
         if (result.success) {
-            // Cache successful response
             responseCache.set(cacheKey, {
                 reply: result.reply,
                 timestamp: Date.now()
@@ -137,41 +118,37 @@ app.get('/chat', async (req, res) => {
             return res.json({
                 reply: result.reply,
                 model: model.split('/')[1],
-                responseTime: `${responseTime}ms`
+                responseTime: responseTime
             });
         }
     }
 
     // Try Backup Models
     for (const model of backupModels) {
-        const result = await tryModel(model, prompt, startTime);
+        const result = await tryModel(model, prompt);
         if (result.success) {
             stats.successful++;
             stats.lastModel = model;
             
             return res.json({
                 reply: result.reply,
-                model: model.split('/')[1],
-                responseTime: `${Date.now() - startTime}ms`,
-                backup: true
+                model: model.split('/')[1]
             });
         }
     }
 
-    // Ultimate Fallback: Savage Local Responses
+    // Fallback
     stats.failed++;
     const savageReply = generateSavageFallback(prompt);
     
     return res.json({
         reply: savageReply,
-        model: "savage-fallback",
-        responseTime: `${Date.now() - startTime}ms`,
-        note: "AI ko break diya, main khud roast kar diya 🔥"
+        model: "savage-fallback"
     });
 });
 
-// Try Model Function with Optimizations
-async function tryModel(model, prompt, startTime) {
+// Try Model Function
+async function tryModel(model, prompt) {
     try {
         const response = await axios.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -181,25 +158,20 @@ async function tryModel(model, prompt, startTime) {
                     { role: "system", content: systemPrompt },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 80,        // Ultra short responses
-                temperature: 1.2,      // More creative and unpredictable
-                top_p: 0.9,
-                frequency_penalty: 0.5,
-                presence_penalty: 0.5
+                max_tokens: 80,
+                temperature: 1.2,
+                top_p: 0.9
             },
             {
                 headers: { 
                     "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://roaster-bot.com",
-                    "X-Title": "Savage Roaster Bot"
+                    "Content-Type": "application/json"
                 },
-                timeout: 8000  // 8 second timeout
+                timeout: 8000
             }
         );
 
-        const reply = response.data.choices[0]?.message?.content?.trim() || 
-                     response.data.choices[0]?.text?.trim();
+        const reply = response.data.choices[0]?.message?.content?.trim();
         
         if (reply && reply.length > 10) {
             return {
@@ -212,86 +184,57 @@ async function tryModel(model, prompt, startTime) {
         return { success: false };
 
     } catch (error) {
-        console.log(`Model ${model} failed: ${error.message}`);
         return { success: false };
     }
 }
 
-// Generate Savage Fallback Response
+// Generate Savage Fallback
 function generateSavageFallback(prompt) {
     const lowerPrompt = prompt.toLowerCase();
     
-    // Context-aware savage responses
     if (lowerPrompt.includes('kya hal') || lowerPrompt.includes('kaise ho')) {
-        return "Mera haal toh ekdum mast, par tera? Lagta hai bot se hi dosti karni pad rahi hai 💀";
+        return "Mera haal toh ekdum mast, par tera? Bot se dosti karni pad rahi 💀";
     }
     
     if (lowerPrompt.includes('hello') || lowerPrompt.includes('hi')) {
-        return "Hi hello band kar aur kuch interesting bol, itna boring mat ban 😭";
+        return "Hi hello band kar aur kuch interesting bol 😭";
     }
     
-    if (lowerPrompt.includes('love') || lowerPrompt.includes('pyar')) {
-        return "Bhai pehle khud se pyar karna seekh le, baaki sab baad mein 🔥";
-    }
-    
-    if (lowerPrompt.includes('help')) {
-        return "Help? Bro pehle khud ki help kar 💀 Main bot hun therapist nahi";
-    }
-    
-    // Random savage fallback
     return savageFallbacks[Math.floor(Math.random() * savageFallbacks.length)];
 }
 
-// Enhanced Stats Endpoint
+// Stats endpoint
 app.get('/stats', (req, res) => {
     const successRate = stats.requests > 0 
         ? Math.round((stats.successful / stats.requests) * 100) 
-        : 0;
+        : 100;
     
     res.json({
         ...stats,
         successRate: `${successRate}%`,
+        uptime: Math.floor(process.uptime()),
         cacheSize: responseCache.size,
-        uptime: process.uptime(),
-        status: "🔥 Savage Mode Active"
+        status: "🔥 Online"
     });
 });
 
-// Health Check
+// Health check
 app.get('/health', (req, res) => {
     res.json({ 
         status: "alive", 
-        roastLevel: "maximum 🔥",
         timestamp: new Date().toISOString()
-    });
-});
-
-// Clear Cache Endpoint (Optional)
-app.get('/clear-cache', (req, res) => {
-    responseCache.clear();
-    res.json({ message: "Cache cleared! Fresh roasts incoming 🔥" });
-});
-
-// 404 Handler - Even errors get roasted
-app.use((req, res) => {
-    res.status(404).json({
-        error: "404 - Endpoint not found",
-        roast: "Arre bhai, galat jagah aa gaya? GPS bhi kaam nahi kar raha kya? 💀",
-        hint: "Try /chat?prompt=your_message"
     });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`
-    ╔═══════════════════════════════════════╗
-    ║  🔥 SAVAGE ROASTER BOT ACTIVATED 🔥  ║
-    ║                                       ║
-    ║  Port: ${PORT}                           ║
-    ║  Status: Ready to Roast              ║
-    ║  Mode: ZERO CHILL ACTIVATED          ║
-    ║  Fallback: 6+ Model System           ║
-    ║  Response: Ultra Fast                ║
-    ╚═══════════════════════════════════════╝
+╔═══════════════════════════════════════╗
+║  🔥 AMAN-AI ROASTER BOT STARTED 🔥   ║
+║                                       ║
+║  Port: ${PORT}                           ║
+║  Status: Ready to Roast              ║
+║  Web UI: http://localhost:${PORT}       ║
+╚═══════════════════════════════════════╝
     `);
 });
