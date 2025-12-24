@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aman-AI Dashboard</title>
+    <style>
+        body { background: #0f0f0f; color: #00ffcc; font-family: sans-serif; text-align: center; padding-top: 50px; }
+        .box { border: 2px solid #00ffcc; display: inline-block; padding: 20px; border-radius: 15px; box-shadow: 0 0 15px #00ffcc; }
+        h1 { color: #cc00ff; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>Aman-AI Monitoring</h1>
+        <p>Owner: <b>A K</b></p>
+        <hr>
+        <p>Total Requests: <span id="req">0</span></p>
+        <p>Total Tokens: <span id="tok">0</span></p>
+        <p>Last Model: <span id="mod">None</span></p>
+        <p>Status: <b style="color: lime;">ONLINE</b></p>
+    </div>
+    <script>
+        setInterval(() => {
+            fetch('/stats').then(r => r.json()).then(data => {
+                document.getElementById('req').innerText = data.requests;
+                document.getElementById('tok').innerText = data.tokens;
+                document.getElementById('mod').innerText = data.lastModel;
+            });
+        }, 3000);
+    </script>
+</body>
+</html>
