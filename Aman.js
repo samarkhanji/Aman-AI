@@ -6,23 +6,23 @@ const app = express();
 
 app.use(express.json());
 
-// Stats Monitoring
+// Monitoring Stats
 let stats = { requests: 0, tokens: 0, lastModel: "None" };
 
-// Models from your images
+// Only Gemini and MiMo as requested
 const models = [
-    "google/gemini-2.0-flash-exp:free", // 1.05M Context
-    "xiaomi/mimo-v2-flash:free",        // 262K Context, Trivia #1
-    "tng/deepseek-r1t2-chimera:free",   // 164K Context, Roleplay #2
+    "google/gemini-2.0-flash-exp:free", // 1.05M Context Window
+    "xiaomi/mimo-v2-flash:free"         // 262K Context Window & Trivia #1
 ];
 
-const systemPrompt = "Aapka naam Bot Hai Jb Koi Bole to Short aur smart reply dena sirf 2 ya 3 line ka Funny ya Roast samne wale ko roast krna ya Hai funny message bhejna bina kuch bole agr bot ke baad kuch likha hai to fir uska reply dena roast mode roast krna hai Dark noughty funny type ai ki tarah faltu explanation nhi only 2 ya 3 line ka message aur real humans girl ki tarah reply krna  .";
+// Character Prompt
+const systemPrompt = "Aapka name Bot Hai Jb Koi Bot Bole To use Roast Krna hai Direct 2 ya 3 line me bas reply sbort aur smart hona Chahiye ai ki tarah faltu explanation nhi ab sirf iske aage jo message aaye uska jawab dena hai ye sb jo bola hai iska jawab nhi dena bot ya bot ke age jo likha hoga uska reply krna hai tume .";
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Main Chat API
+// Chat API Logic
 app.get('/chat', async (req, res) => {
     const prompt = req.query.prompt;
     if (!prompt) return res.json({ error: "Prompt missing" });
@@ -40,16 +40,16 @@ app.get('/chat', async (req, res) => {
         }, {
             headers: { 
                 "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                "HTTP-Referer": "https://aman-ai.onrender.com", // Required by some OpenRouter models
+                "HTTP-Referer": "https://aman-ai.onrender.com",
                 "X-Title": "Aman-AI"
             },
-            timeout: 30000 // 30 seconds timeout
+            timeout: 30000 
         });
 
-        // Fixing the "undefined" error by checking all possible response paths
-        const reply = response.data.choices[0]?.message?.content || response.data.choices[0]?.text || "Maaf karna, main samajh nahi paaya.";
+        // Safe Response Handling
+        const reply = response.data.choices[0]?.message?.content || "Server thoda busy hai, firse try karo!";
         
-        // Update Stats
+        // Update Monitoring Data
         stats.requests++;
         stats.tokens += response.data.usage?.total_tokens || 0;
         stats.lastModel = randomModel;
@@ -57,19 +57,23 @@ app.get('/chat', async (req, res) => {
         res.json({ reply, model: randomModel });
 
     } catch (error) {
-        console.error("Error Detail:", error.response ? error.response.data : error.message);
+        console.error("API Error:", error.response ? error.response.data : error.message);
         res.json({ 
             error: "API Error", 
-            details: error.response?.data?.error?.message || error.message 
+            details: error.response?.data?.error?.message || "Check your API Key or Model limit." 
         });
     }
 });
 
-// Stats API for Web View
+// Endpoint for Dashboard Stats
 app.get('/stats', (req, res) => res.json(stats));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`★ Aman-AI is Live on Port ${PORT} ★`);
+    console.log(`\n====================================`);
+    console.log(`🚀 Aman-AI is Online!`);
+    console.log(`👤 Owner: Aman Khan (A K)`);
+    console.log(`📡 Port: ${PORT}`);
+    console.log(`====================================\n`);
 });
 
