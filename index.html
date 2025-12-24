@@ -347,7 +347,7 @@
             sendBtn.textContent = 'Sending...';
             
             try {
-                const response = await fetch(`/chat?prompt=${encodeURIComponent(message)}`);
+                const response = await fetch(`/Aman?prompt=${encodeURIComponent(message)}`);
                 const data = await response.json();
                 
                 addMessage(data.reply, false, data.model);
