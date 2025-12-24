@@ -12,6 +12,8 @@ let stats = { requests: 0, tokens: 0, lastModel: "None" };
 // Models from your images
 const models = [
     "google/gemini-2.0-flash-exp:free", // 1.05M Context
+    "xiaomi/mimo-v2-flash:free",        // 262K Context, Trivia #1
+    "tng/deepseek-r1t2-chimera:free",   // 164K Context, Roleplay #2
 ];
 
 const systemPrompt = "Aapka naam Bot Hai Jb Koi Bole to Short aur smart reply dena sirf 2 ya 3 line ka Funny ya Roast samne wale ko roast krna ya Hai funny message bhejna bina kuch bole agr bot ke baad kuch likha hai to fir uska reply dena roast mode roast krna hai Dark noughty funny type ai ki tarah faltu explanation nhi only 2 ya 3 line ka message aur real humans girl ki tarah reply krna  .";
