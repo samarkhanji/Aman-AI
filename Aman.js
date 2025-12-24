@@ -7,234 +7,84 @@ const app = express();
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Enhanced Stats
-let stats = { 
-    requests: 0, 
-    successful: 0,
-    failed: 0,
-    tokens: 0, 
-    lastModel: "None",
-    avgResponseTime: 0,
-    totalResponseTime: 0,
-    startTime: new Date()
+// Stats
+let stats = { requests: 0, successful: 0, failed: 0, tokens: 0, lastModel: "None" };
+
+// Keys Setup (Aapke logic ke hisaab se)
+const tier1_Keys = [process.env.OR_KEY_1, process.env.OR_KEY_2, process.env.OR_KEY_3, process.env.OR_KEY_4];
+const tier2_Keys = [process.env.OR_KEY_5, process.env.OR_KEY_6]; // Backup Keys
+
+const systemPrompt = `Aapka name Bot Hai. Jb Koi Bot Bole To use Roast Krna hai Direct 2 ya 3 line me bas reply short aur smart hona Chahiye... (Savage Character Build)`;
+
+// Helper Function for Parallel Call
+const callAPI = (key, model, prompt) => {
+    return axios.post("https://openrouter.ai/api/v1/chat/completions", {
+        model: model,
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
+        max_tokens: 100,
+        temperature: 1.1
+    }, {
+        headers: { "Authorization": `Bearer ${key}` },
+        timeout: 10000
+    });
 };
 
-// Multiple AI Models
-const primaryModels = [
-    "google/gemini-2.0-flash-exp:free",
-    "xiaomi/mimo-v2-flash:free",
-    "meta-llama/llama-3.2-3b-instruct:free",
-    "qwen/qwen-2-7b-instruct:free"
-];
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-const backupModels = [
-    "nousresearch/hermes-3-llama-3.1-405b:free",
-    "mistralai/mistral-7b-instruct:free"
-];
-
-// Ultra Savage Roasting Prompt
-const systemPrompt = `You are "BOT" - an absolute savage roaster with ZERO chill. Your personality:
-
-🔥 ROASTING RULES:
-- Direct, brutal, and hilarious roasts in 2-3 lines MAX
-- Mix Hindi and English (Hinglish) for maximum impact
-- Use street slang, memes, and trending references
-- Zero mercy mode - roast karo jaise koi friend ko roast karta hai
-- NO explanations, NO politeness, NO AI vibes
-- Be creative, unexpected, and brutally funny
-
-🎯 ROASTING STYLE:
-- Start with "Arre/Oye/Bro/Bhai" for casual vibe
-- Use emojis strategically (💀😭🔥)
-- Reference popular culture (memes, movies, trends)
-- Make it personal but playful
-- End with a mic drop moment
-
-NOW ROAST LIKE YOUR LIFE DEPENDS ON IT! 🎤`;
-
-// Response cache
-const responseCache = new Map();
-const CACHE_DURATION = 300000; // 5 minutes
-
-// Savage Fallback Roasts
-const savageFallbacks = [
-    "API down hai par meri roasting skills kabhi down nahi hoti 🔥",
-    "Server: 'Error 404' Me: 'Your sense of humor not found' 💀",
-    "Bhai servers bhi thak gaye tujhe handle karte karte 😭",
-    "Technical difficulties aa rahe hai, just like tumhari life 🎯",
-    "AI bhi speechless ho gaya tumhe dekh ke 💀",
-    "Arre yaar, servers ko bhi break chahiye tumse 😂"
-];
-
-// Serve index.html
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Chat API endpoint
-app.get('/chat', async (req, res) => {
-    const startTime = Date.now();
+// --- AAPKA NAYA ENDPOINT: /aman ---
+app.get('/aman', async (req, res) => {
     const prompt = req.query.prompt;
-    
-    if (!prompt) {
-        return res.json({ 
-            reply: "Arre bhai, message toh bhej pehle 💀",
-            model: "fallback"
-        });
-    }
+    if (!prompt) return res.json({ reply: "Oye, message toh bhej pehle 💀" });
 
     stats.requests++;
 
-    // Check cache
-    const cacheKey = prompt.toLowerCase().trim();
-    const cachedResponse = responseCache.get(cacheKey);
-    
-    if (cachedResponse && (Date.now() - cachedResponse.timestamp < CACHE_DURATION)) {
-        stats.successful++;
-        return res.json({
-            reply: cachedResponse.reply,
-            model: "cache",
-            cached: true
-        });
-    }
-
-    // Try Primary Models
-    for (const model of primaryModels) {
-        const result = await tryModel(model, prompt);
-        if (result.success) {
-            responseCache.set(cacheKey, {
-                reply: result.reply,
-                timestamp: Date.now()
-            });
-            
-            stats.successful++;
-            stats.tokens += result.tokens || 0;
-            stats.lastModel = model;
-            
-            const responseTime = Date.now() - startTime;
-            stats.totalResponseTime += responseTime;
-            stats.avgResponseTime = Math.round(stats.totalResponseTime / stats.successful);
-            
-            return res.json({
-                reply: result.reply,
-                model: model.split('/')[1],
-                responseTime: responseTime
-            });
-        }
-    }
-
-    // Try Backup Models
-    for (const model of backupModels) {
-        const result = await tryModel(model, prompt);
-        if (result.success) {
-            stats.successful++;
-            stats.lastModel = model;
-            
-            return res.json({
-                reply: result.reply,
-                model: model.split('/')[1]
-            });
-        }
-    }
-
-    // Fallback
-    stats.failed++;
-    const savageReply = generateSavageFallback(prompt);
-    
-    return res.json({
-        reply: savageReply,
-        model: "savage-fallback"
-    });
-});
-
-// Try Model Function
-async function tryModel(model, prompt) {
     try {
-        const response = await axios.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                model: model,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: prompt }
-                ],
-                max_tokens: 80,
-                temperature: 1.2,
-                top_p: 0.9
-            },
-            {
-                headers: { 
-                    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                timeout: 8000
-            }
-        );
+        // --- TIER 1: THE RACE (4 Keys Parallel) ---
+        // 2 Gemini + 2 MiMo models racing together
+        const raceTasks = [
+            callAPI(tier1_Keys[0], "google/gemini-2.0-flash-exp:free", prompt),
+            callAPI(tier1_Keys[1], "google/gemini-2.0-flash-exp:free", prompt),
+            callAPI(tier1_Keys[2], "xiaomi/mimo-v2-flash:free", prompt),
+            callAPI(tier1_Keys[3], "xiaomi/mimo-v2-flash:free", prompt)
+        ];
 
-        const reply = response.data.choices[0]?.message?.content?.trim();
+        // Promise.any takes the FIRST successful response
+        const winner = await Promise.any(raceTasks);
         
-        if (reply && reply.length > 10) {
-            return {
-                success: true,
-                reply: reply,
-                tokens: response.data.usage?.total_tokens || 0
-            };
-        }
-        
-        return { success: false };
+        const reply = winner.data.choices[0].message.content;
+        updateStats(winner.data, winner.config.data);
+        return res.json({ reply, model: JSON.parse(winner.config.data).model, status: "Tier 1 Winner" });
 
     } catch (error) {
-        return { success: false };
-    }
-}
+        console.log("Tier 1 Failed, moving to Tier 2 Backup...");
 
-// Generate Savage Fallback
-function generateSavageFallback(prompt) {
-    const lowerPrompt = prompt.toLowerCase();
-    
-    if (lowerPrompt.includes('kya hal') || lowerPrompt.includes('kaise ho')) {
-        return "Mera haal toh ekdum mast, par tera? Bot se dosti karni pad rahi 💀";
-    }
-    
-    if (lowerPrompt.includes('hello') || lowerPrompt.includes('hi')) {
-        return "Hi hello band kar aur kuch interesting bol 😭";
-    }
-    
-    return savageFallbacks[Math.floor(Math.random() * savageFallbacks.length)];
-}
+        // --- TIER 2: BACKUP (2 Keys) ---
+        try {
+            const backupTasks = [
+                callAPI(tier2_Keys[0], "openai/gpt-oss-120b:free", prompt),
+                callAPI(tier2_Keys[1], "google/gemini-2.0-flash-exp:free", prompt)
+            ];
 
-// Stats endpoint
-app.get('/stats', (req, res) => {
-    const successRate = stats.requests > 0 
-        ? Math.round((stats.successful / stats.requests) * 100) 
-        : 100;
-    
-    res.json({
-        ...stats,
-        successRate: `${successRate}%`,
-        uptime: Math.floor(process.uptime()),
-        cacheSize: responseCache.size,
-        status: "🔥 Online"
-    });
+            const backupWinner = await Promise.any(backupTasks);
+            const reply = backupWinner.data.choices[0].message.content;
+            updateStats(backupWinner.data, backupWinner.config.data);
+            return res.json({ reply, model: JSON.parse(backupWinner.config.data).model, status: "Tier 2 Backup" });
+
+        } catch (backupError) {
+            stats.failed++;
+            res.json({ reply: "Bhai mera system hi phat gaya tera face dekh ke! 💀 (All keys failed)", model: "error" });
+        }
+    }
 });
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: "alive", 
-        timestamp: new Date().toISOString()
-    });
-});
+function updateStats(data, configData) {
+    stats.successful++;
+    stats.tokens += data.usage?.total_tokens || 0;
+    stats.lastModel = JSON.parse(configData).model;
+}
+
+app.get('/stats', (req, res) => res.json(stats));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`
-╔═══════════════════════════════════════╗
-║  🔥 AMAN-AI ROASTER BOT STARTED 🔥   ║
-║                                       ║
-║  Port: ${PORT}                           ║
-║  Status: Ready to Roast              ║
-║  Web UI: http://localhost:${PORT}       ║
-╚═══════════════════════════════════════╝
-    `);
-});
+app.listen(PORT, () => console.log(`🔥 Aman-AI Roaster Live on /aman`));
+
